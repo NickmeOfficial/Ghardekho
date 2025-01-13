@@ -26,6 +26,7 @@ interface PropertyContextType {
         propertyData: Partial<PropertyDetails>
     ) => Promise<PropertyDetails>;
     deleteProperty: (propertyId: number) => Promise<void>;
+    createProperty: (propertyData: Omit<PropertyDetails, 'id'>) => Promise<PropertyDetails>;
 }
 
 const PropertyContext = createContext<PropertyContextType | undefined>(
@@ -149,6 +150,29 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
         setProperties((prev) => prev.filter((p) => p.id !== propertyId));
     };
 
+    const createProperty = async (propertyData: Omit<PropertyDetails, 'id'>): Promise<PropertyDetails> => {
+        const transformedData = transformPropertyForUpdate(propertyData as PropertyDetails);
+        const response = await fetch('http://localhost:3000/property', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(transformedData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+                Array.isArray(errorData.message)
+                    ? errorData.message.join(', ')
+                    : errorData.message || 'Unknown error'
+            );
+        }
+
+        const newProperty = await response.json();
+        const transformedProperty = transformProperty(newProperty);
+        setProperties((prev) => [...prev, transformedProperty]);
+        return transformedProperty;
+    };
+
     useEffect(() => {
         fetchPropertyList();
     }, []);
@@ -163,6 +187,7 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
                 fetchPropertyList,
                 updateProperty,
                 deleteProperty,
+                createProperty,
             }}
         >
             {children}
