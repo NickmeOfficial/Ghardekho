@@ -2,13 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { PropertyProvider } from './contexts/PropertyContext';
 import { Home } from './pages/Home';
-// import { PropertyDetails } from './pages/Properties';
 import { AboutUs } from './pages/AboutUs';
 import { ContactUs } from './pages/ContactUs';
 import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { Button } from "./components/ui/button";
-import { LayoutDashboard, User } from 'lucide-react';
+// import { PropertyDetails } from './pages/Properties';
+// import { Register } from './pages/Register';
+// import { Button } from "./components/ui/button";
+// import { LayoutDashboard, User } from 'lucide-react';
 import Properties from './pages/Properties';
 import {PropertyDashboard} from './pages/Dashboard';
 

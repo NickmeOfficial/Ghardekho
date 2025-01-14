@@ -26,7 +26,12 @@ interface PropertyContextType {
         propertyData: Partial<PropertyDetails>
     ) => Promise<PropertyDetails>;
     deleteProperty: (propertyId: number) => Promise<void>;
-    createProperty: (propertyData: Omit<PropertyDetails, 'id'>) => Promise<PropertyDetails>;
+    createProperty: (
+        propertyData: Omit<PropertyDetails, 'id'>
+    ) => Promise<PropertyDetails>;
+    totalPages: number;
+    currentPage: number;
+    setCurrentPage: (page: number) => void;
 }
 
 const PropertyContext = createContext<PropertyContextType | undefined>(
@@ -80,11 +85,13 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
     const [properties, setProperties] = useState<PropertyDetails[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const fetchPropertyList = async (
         searchTerm: string = '',
         page: number = 1,
-        limit: number = 10
+        limit: number = 12
     ) => {
         setLoading(true);
         try {
@@ -95,6 +102,8 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
             const data: PropertyListResponse = await response.json();
             const transformedProperties = data.data.map(transformProperty);
             setProperties(transformedProperties);
+            setTotalPages(Math.ceil(data.total / limit));
+            setCurrentPage(page);
         } catch (err) {
             setError('Error fetching properties');
             console.error('Error fetching properties:', err);
@@ -150,8 +159,12 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
         setProperties((prev) => prev.filter((p) => p.id !== propertyId));
     };
 
-    const createProperty = async (propertyData: Omit<PropertyDetails, 'id'>): Promise<PropertyDetails> => {
-        const transformedData = transformPropertyForUpdate(propertyData as PropertyDetails);
+    const createProperty = async (
+        propertyData: Omit<PropertyDetails, 'id'>
+    ): Promise<PropertyDetails> => {
+        const transformedData = transformPropertyForUpdate(
+            propertyData as PropertyDetails
+        );
         const response = await fetch('http://localhost:3000/property', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -188,6 +201,9 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({
                 updateProperty,
                 deleteProperty,
                 createProperty,
+                totalPages,
+                currentPage,
+                setCurrentPage,
             }}
         >
             {children}

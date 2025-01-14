@@ -56,4 +56,5 @@ export interface PropertyDetails {
 
 export interface PropertyListResponse {
   data: PropertyResponse[];
+  total: number;
 }

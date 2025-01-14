@@ -28,7 +28,21 @@ interface Notification {
 }
 
 export const PropertyDashboard: React.FC = () => {
-    const { properties, fetchPropertyList, updateProperty, deleteProperty, createProperty } = usePropertyContext();
+    const { 
+        properties, 
+        fetchPropertyList, 
+        updateProperty, 
+        deleteProperty, 
+        createProperty,
+        totalPages,    // Add these from context
+        currentPage,   // Add these from context
+        setCurrentPage // Add these from context
+    } = usePropertyContext();
+    
+    // Remove these as they're now coming from context
+    // const [currentPage, setCurrentPage] = useState(1);
+    // const [totalPages, setTotalPages] = useState(1);
+
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [sortOption, setSortOption] = useState<string>('');
     const [selectedProperty, setSelectedProperty] = useState<PropertyDetails | null>(null);
@@ -41,14 +55,14 @@ export const PropertyDashboard: React.FC = () => {
         description: '',
         created_by: '',
         price: 0,
-        currency: 'USD',
+        currency: 'INR', // Set default currency to INR
         email: '',
         mobile: '',
         property_type: '',
         area: '',
         measurement_type: 1,
         is_featured: false,
-        status: 'ACTIVE'
+        status: 'ACTIVE' // Set default status to ACTIVE
     });
 
     const showNotification = (message: string, type: 'success' | 'error') => {
@@ -57,29 +71,71 @@ export const PropertyDashboard: React.FC = () => {
     };
 
     useEffect(() => {
-        const loadProperties = async () => {
-            await fetchPropertyList(searchTerm);
-        };
-
-        const debounceTimer = setTimeout(loadProperties, 300);
-        return () => clearTimeout(debounceTimer);
-    }, [searchTerm, fetchPropertyList]);
-
-    useEffect(() => {
         setDisplayedProperties(properties);
     }, [properties]);
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value);
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newSearchTerm = e.target.value;
+        setSearchTerm(newSearchTerm);
+    };
+
+    const handleSearchSubmit = async () => {
+        try {
+            setCurrentPage(1); // Reset to first page on new search
+            await fetchPropertyList(searchTerm, 1); // Always start from page 1 for new search
+        } catch (error) {
+            showNotification('Failed to search properties', 'error');
+        }
+    };
+
+    useEffect(() => {
+        fetchPropertyList('', currentPage);
+    }, []); // Run only once on mount
 
     const handleSort = (value: string) => {
         setSortOption(value);
         const sortedProperties = [...displayedProperties].sort((a, b) => {
-            if (value === 'price') return a.price - b.price;
-            if (value === 'area') return parseFloat(a.area) - parseFloat(b.area);
-            return a.title.localeCompare(b.title);
+            try {
+                switch (value) {
+                    case 'price-low':
+                        return Number(a.price || 0) - Number(b.price || 0);
+                    case 'price-high':
+                        return Number(b.price || 0) - Number(a.price || 0);
+                    case 'area-low':
+                        // Remove non-numeric characters and convert to number
+                        const areaA = parseFloat(a.area.replace(/[^0-9.]/g, '') || '0');
+                        const areaB = parseFloat(b.area.replace(/[^0-9.]/g, '') || '0');
+                        return areaA - areaB;
+                    case 'area-high':
+                        const areaC = parseFloat(a.area.replace(/[^0-9.]/g, '') || '0');
+                        const areaD = parseFloat(b.area.replace(/[^0-9.]/g, '') || '0');
+                        return areaD - areaC;
+                    case 'title-asc':
+                        return (a.title || '').localeCompare(b.title || '');
+                    case 'title-desc':
+                        return (b.title || '').localeCompare(a.title || '');
+                    case 'latest':
+                        return (Number(b.id) || 0) - (Number(a.id) || 0);
+                    case 'oldest':
+                        return (Number(a.id) || 0) - (Number(b.id) || 0);
+                    default:
+                        return 0;
+                }
+            } catch (error) {
+                console.error('Sorting error:', error);
+                return 0;
+            }
         });
         setDisplayedProperties(sortedProperties);
     };
+
+    useEffect(() => {
+        if (sortOption) {
+            handleSort(sortOption);
+        } else {
+            setDisplayedProperties(properties);
+        }
+    }, [properties]);
 
     const handleEditProperty = (property: PropertyDetails) => setSelectedProperty(property);
 
@@ -138,14 +194,14 @@ export const PropertyDashboard: React.FC = () => {
                 description: '',
                 created_by: '',
                 price: 0,
-                currency: 'USD',
+                currency: 'INR', 
                 email: '',
                 mobile: '',
                 property_type: '',
                 area: '',
                 measurement_type: 1,
                 is_featured: false,
-                status: 'ACTIVE'
+                status: 'ACTIVE' 
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -153,41 +209,82 @@ export const PropertyDashboard: React.FC = () => {
         }
     };
 
+    const handleNextPage = () => {
+        if (currentPage < totalPages) {
+            const nextPage = currentPage + 1;
+            setCurrentPage(nextPage);
+            fetchPropertyList(searchTerm, nextPage);
+        }
+    };
+
+    const handlePrevPage = () => {
+        if (currentPage > 1) {
+            const prevPage = currentPage - 1;
+            setCurrentPage(prevPage);
+            fetchPropertyList(searchTerm, prevPage);
+        }
+    };
+
     return (
-        <div className='p-8 relative'>
+        <div className='p-4 sm:p-6 md:p-8 relative'>
+            {/* Notification */}
             {notification && (
-                <div
-                    className={`fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 transition-opacity duration-300 ${
-                        notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-                    } text-white`}
-                >
+                <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 transition-opacity duration-300 ${
+                    notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+                } text-white max-w-[90vw] md:max-w-md`}>
                     {notification.message}
                 </div>
             )}
-            <div className='flex justify-between items-center mb-6'>
-                <h1 className='text-3xl font-bold'>Property Dashboard</h1>
+
+            {/* Header */}
+            <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6'>
+                <h1 className='text-2xl sm:text-3xl font-bold'>Property Dashboard</h1>
                 <Button onClick={() => setShowAddForm(true)}>Add Property</Button>
             </div>
-            <div className='flex gap-4 mb-6'>
-                <Input
-                    type='text'
-                    placeholder='Search properties...'
-                    value={searchTerm}
-                    onChange={handleSearch}
-                    className='flex-grow'
-                />
+
+            {/* Search and Sort */}
+            <div className='flex flex-col sm:flex-row gap-4 mb-6'>
+                <div className='flex-grow flex gap-2 w-full sm:w-auto'>
+                    <Input
+                        type='text'
+                        placeholder='Search properties...'
+                        value={searchTerm}
+                        onChange={handleSearch}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSearchSubmit();
+                            }
+                        }}
+                        className="flex-1"
+                    />
+                    <Button 
+                        onClick={handleSearchSubmit}
+                        variant="default"
+                        className="bg-primary hover:bg-primary/90 whitespace-nowrap"
+                    >
+                        Search
+                    </Button>
+                </div>
                 <Select onValueChange={handleSort} value={sortOption}>
-                    <SelectTrigger className='w-[180px]'>
+                    <SelectTrigger className='w-full sm:w-[180px]'>
                         <SelectValue placeholder='Sort by' />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value='title'>Sort by Title</SelectItem>
-                        <SelectItem value='price'>Sort by Price</SelectItem>
-                        <SelectItem value='area'>Sort by Area</SelectItem>
+                        <SelectItem value='latest'>Latest First</SelectItem>
+                        <SelectItem value='oldest'>Oldest First</SelectItem>
+                        <SelectItem value='price-low'>Price: Low to High</SelectItem>
+                        <SelectItem value='price-high'>Price: High to Low</SelectItem>
+                        <SelectItem value='area-low'>Area: Low to High</SelectItem>
+                        <SelectItem value='area-high'>Area: High to Low</SelectItem>
+                        <SelectItem value='title-asc'>Title: A to Z</SelectItem>
+                        <SelectItem value='title-desc'>Title: Z to A</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+
+            {/* Property Grid */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6'>
                 {displayedProperties.map((property) => (
                     <ModernCard
                         key={property.id}
@@ -205,11 +302,35 @@ export const PropertyDashboard: React.FC = () => {
                     />
                 ))}
             </div>
-            <Dialog
-                open={!!selectedProperty}
-                onOpenChange={() => setSelectedProperty(null)}
-            >
-                <DialogContent>
+
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mt-6">
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handlePrevPage}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-2"
+                    >
+                        ← Previous
+                    </Button>
+                    <span className="text-sm whitespace-nowrap">
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                        variant="outline"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-2"
+                    >
+                        Next →
+                    </Button>
+                </div>
+            </div>
+
+            {/* Dialogs - Update their content container sizes */}
+            <Dialog open={!!selectedProperty} onOpenChange={() => setSelectedProperty(null)}>
+                <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto md:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Edit Property</DialogTitle>
                         <DialogDescription>
@@ -415,22 +536,30 @@ export const PropertyDashboard: React.FC = () => {
                             </div>
                             <div className='space-y-2'>
                                 <Label htmlFor="property-measurement-type">Measurement Type</Label>
-                                <Input
-                                    id="property-measurement-type"
+                                <Select
                                     name="measurement_type"
-                                    autoComplete="off"
-                                    value={selectedProperty?.measurement_type || ''}
-                                    onChange={(e) =>
+                                    value={selectedProperty?.measurement_type?.toString() || "1"}
+                                    onValueChange={(value) =>
                                         setSelectedProperty(
                                             selectedProperty
                                                 ? {
                                                       ...selectedProperty,
-                                                      measurement_type: parseInt(e.target.value, 10),
+                                                      measurement_type: parseInt(value, 10),
                                                   }
                                                 : null
                                         )
                                     }
-                                />
+                                >
+                                    <SelectTrigger id="property-measurement-type" className='w-full'>
+                                        <SelectValue placeholder='Select measurement type' />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1">Square Feet</SelectItem>
+                                        <SelectItem value="2">Square Meters</SelectItem>
+                                        <SelectItem value="3">Square Yards</SelectItem>
+                                        <SelectItem value="4">Acres</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className='space-y-2'>
                                 <Label htmlFor="property-status">Status</Label>
@@ -477,7 +606,7 @@ export const PropertyDashboard: React.FC = () => {
                 </DialogContent>
             </Dialog>
             <Dialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
-                <DialogContent>
+                <DialogContent className="max-w-[90vw] md:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Confirm Deletion</DialogTitle>
                         <DialogDescription>
@@ -501,7 +630,7 @@ export const PropertyDashboard: React.FC = () => {
                 </DialogContent>
             </Dialog>
             <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
-                <DialogContent>
+                <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto md:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Add New Property</DialogTitle>
                         <DialogDescription>
@@ -510,6 +639,7 @@ export const PropertyDashboard: React.FC = () => {
                     </DialogHeader>
                     <form onSubmit={handleCreateProperty} className='space-y-4'>
                         <div className='grid grid-cols-2 gap-4'>
+                            {/* Keep all other form fields the same, but remove currency and status fields */}
                             <div className='space-y-2'>
                                 <Label htmlFor="new-property-title">Title</Label>
                                 <Input
@@ -530,18 +660,6 @@ export const PropertyDashboard: React.FC = () => {
                                     onChange={(e) => setNewProperty(prev => ({
                                         ...prev,
                                         description: e.target.value
-                                    }))}
-                                    required
-                                />
-                            </div>
-                            <div className='space-y-2'>
-                                <Label htmlFor="new-property-created-by">Created By</Label>
-                                <Input
-                                    id="new-property-created-by"
-                                    value={newProperty.created_by}
-                                    onChange={(e) => setNewProperty(prev => ({
-                                        ...prev,
-                                        created_by: e.target.value
                                     }))}
                                     required
                                 />
@@ -577,6 +695,18 @@ export const PropertyDashboard: React.FC = () => {
                                         <SelectItem value='POUND'>POUND</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className='space-y-2'>
+                                <Label htmlFor="new-property-created-by">Created By</Label>
+                                <Input
+                                    id="new-property-created-by"
+                                    value={newProperty.created_by}
+                                    onChange={(e) => setNewProperty(prev => ({
+                                        ...prev,
+                                        created_by: e.target.value
+                                    }))}
+                                    required
+                                />
                             </div>
                             <div className='space-y-2'>
                                 <Label htmlFor="new-property-email">Email</Label>
@@ -638,27 +768,26 @@ export const PropertyDashboard: React.FC = () => {
                             </div>
                             <div className='space-y-2'>
                                 <Label htmlFor="new-property-measurement-type">Measurement Type</Label>
-                                <Input
-                                    id="new-property-measurement-type"
-                                    value={newProperty.measurement_type}
-                                    onChange={(e) => setNewProperty(prev => ({
-                                        ...prev,
-                                        measurement_type: parseInt(e.target.value, 10)
-                                    }))}
-                                    required
-                                />
-                            </div>
-                            <div className='space-y-2'>
-                                <Label htmlFor="new-property-status">Status</Label>
-                                <Input
-                                    id="new-property-status"
-                                    value={newProperty.status}
-                                    onChange={(e) => setNewProperty(prev => ({
-                                        ...prev,
-                                        status: e.target.value
-                                    }))}
-                                    required
-                                />
+                                <Select
+                                    name="measurement_type"
+                                    value={newProperty.measurement_type.toString()}
+                                    onValueChange={(value) =>
+                                        setNewProperty(prev => ({
+                                            ...prev,
+                                            measurement_type: parseInt(value, 10)
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger id="new-property-measurement-type" className='w-full'>
+                                        <SelectValue placeholder='Select measurement type' />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1">Square Feet</SelectItem>
+                                        <SelectItem value="2">Square Meters</SelectItem>
+                                        <SelectItem value="3">Square Yards</SelectItem>
+                                        <SelectItem value="4">Acres</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                         <div className='flex items-center space-x-2'>
